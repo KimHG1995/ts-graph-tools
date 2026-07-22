@@ -1,0 +1,17 @@
+{
+  "name": "ts-graph-tools",
+  "version": "0.1.0",
+  "private": true,
+  "description": "External host for @ttsc/graph — a TypeScript code-graph MCP server. Analyzes any TS project via per-project MCP cwd with zero footprint on the target repo.",
+  "engines": {
+    "node": ">=22.15.0"
+  },
+  "scripts": {
+    "postinstall": "node -e \"console.log('ts-graph-tools installed. Register a project MCP with ./scripts/register-mcp.sh')\""
+  },
+  "dependencies": {
+    "@ttsc/graph": "0.19.3",
+    "ttsc": "0.19.3",
+    "ts7": "npm:typescript@7.0.2"
+  }
+}

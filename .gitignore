@@ -1,0 +1,11 @@
+# Dependencies (reconstructed per-platform via `npm install`)
+node_modules/
+
+# Graph dump / cache output
+*.ttscgraph
+.ttsc/
+graph-dump*.json
+
+# Logs & OS cruft
+*.log
+.DS_Store
