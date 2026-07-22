@@ -12,7 +12,7 @@
 #   ./scripts/register-mcp.sh <mcp-name> <project-dir>
 #
 # Example:
-#   ./scripts/register-mcp.sh ttsc-graph-cmes /Users/hgkim/Documents/KPEC/cmes-server
+#   ./scripts/register-mcp.sh ts-graph-myapp /path/to/target-project
 #
 # Requires the `claude` CLI on PATH. Run it, then restart Claude Code inside the
 # target project to pick up the `inspect_typescript_graph` tool.
