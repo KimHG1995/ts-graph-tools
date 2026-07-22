@@ -87,17 +87,86 @@ claude mcp add <mcp-name> --scope local \
 Both env paths are absolute and identical for every project; the only per-project
 difference is which project the local-scope MCP is attached to.
 
+## Usage — the `inspect_typescript_graph` tool
+
+Once registered, the host exposes a **single MCP tool**, `inspect_typescript_graph`.
+You don't call it by hand — ask Claude a question about the codebase in plain
+language and it selects and submits one request. **Every fact returned (names,
+edges, signatures, spans) is compiler-resolved and verified against the current
+on-disk snapshot**, so it's trusted without re-reading files.
+
+### Request envelope (chain of thought)
+
+Each call carries a short reasoning plus exactly one request:
+
+| Field | Meaning |
+|---|---|
+| `question` | the code question in the user's own words — the graph ranks against these exact words |
+| `draft` | `{ reason, type }`: the smallest request that could answer, and why |
+| `review` | correct the draft; escape if the graph already answered or the evidence is outside it |
+| `request` | the final request — exactly one of the seven types below |
+
+The result carries an `audit` (what was verified) and a `next` hint —
+`answer` / `inspect` / `outside` / `clarify` — that paces any follow-up.
+
+### The seven request types (methods)
+
+| Type | Answers | Key inputs |
+|---|---|---|
+| `tour` | Architecture, runtime flow, orientation — a whole code tour in one call | `reinterpretations[]` (symbol names you expect, or `[]`), `limit` |
+| `entrypoints` | Where execution starts, when the entry point is unknown | `query`, `limit` |
+| `lookup` | Locate a named symbol (where it's declared) | `query`, `limit` |
+| `trace` | Follow calls / data flow, or the path A→B | `from`, `to?`, `direction`, `focus` |
+| `details` | Signatures, members, and **what implements an interface** | `handles[]`, `neighbors?`, `memberLimit?` |
+| `overview` | Project layers, folders, hotspots, public API | `aspect` |
+| `escape` | The answer is **outside** the graph (source body text, non-TS files, exact string search) | `reason` |
+
+#### Parameter notes
+
+- `trace.direction`: `forward` = what the start uses (callees) · `reverse` = what uses it (callers) · `impact` = reverse trace prioritizing public API + the tests a change reaches.
+- `trace.focus`: `execution` (runtime calls/instantiations/JSX) · `types` (type refs/inheritance) · `all`.
+- `trace.to`: when both ends are known, returns the path between them — the one call for *"how does A reach B"*.
+- `details` returns an interface's implementers — the one call for *"what actually implements this"*.
+- Ranked ops (`lookup`, `entrypoints`, `tour`) return a scored, capped shortlist: the facts are verified, but whether the shortlist covers your question is yours to judge.
+
+### Example questions → the method it picks
+
+| You ask | Method |
+|---|---|
+| "Give me a tour of this server's architecture and main flow" | `tour` |
+| "Where does payment processing start?" | `entrypoints` |
+| "Where is `OrderService.create` declared?" | `lookup` |
+| "Who calls this function?" | `trace` (reverse) |
+| "How does the controller reach the repository?" | `trace` (with `to`) |
+| "Which classes implement this interface?" | `details` |
+| "Show the folder layers and the public API" | `overview` |
+
 ## Scope: graph only (not lint)
 
 `@ttsc/lint` is a **compile plugin**, not an MCP server, and it requires a
 `lint.config.ts` **inside** the target repo to activate its rules — so it can't be
 hosted here with zero footprint. This host covers **graph** only.
 
-## Verify
+## CLI & verify
+
+The native builder runs directly from this host — env-free, still zero-footprint
+on the target (`<platform>` is e.g. `darwin-arm64`, `linux-x64`):
 
 ```bash
-# Dump a graph for any project without touching it:
-node_modules/.bin/ttscgraph dump \
-  --cwd <path-to-target-project> \
-  --tsconfig tsconfig.json > /dev/null && echo OK
+# Smoke test — build the graph and discard it:
+node_modules/@ttsc/<platform>/bin/ttscgraph dump \
+  --cwd <path-to-target-project> --tsconfig tsconfig.json > /dev/null && echo OK
+
+# Full graph as JSON (every node/edge, no MCP response caps):
+node_modules/@ttsc/<platform>/bin/ttscgraph dump \
+  --cwd <path-to-target-project> --tsconfig tsconfig.json --pretty > graph.json
 ```
+
+`ttscgraph serve` is the internal incremental protocol the MCP server drives — not
+run by hand.
+
+## License
+
+[Unlicense](LICENSE) — public domain. Do whatever you want; no attribution
+required, no warranty. The npm packages this repo installs keep their own
+licenses; none of them are vendored here.

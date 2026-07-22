@@ -86,17 +86,84 @@ claude mcp add <mcp-이름> --scope local \
 두 env 경로는 절대 경로이고 모든 프로젝트에서 동일합니다. 프로젝트별 유일한 차이는
 로컬 스코프 MCP가 **어느 프로젝트에 붙느냐**뿐입니다.
 
+## 사용법 — `inspect_typescript_graph` 툴
+
+등록되면 호스트는 **MCP 툴 하나** `inspect_typescript_graph`를 노출합니다. 직접
+호출하는 게 아니라 — 코드베이스에 대한 질문을 평소 말로 Claude에게 하면, Claude가 아래
+요청 타입 중 하나를 골라 제출합니다. **반환된 모든 사실(이름·엣지·시그니처·span)은
+컴파일러가 해석하고 현재 디스크 스냅샷 기준으로 검증**되므로, 파일을 다시 안 읽고 그대로
+신뢰합니다.
+
+### 요청 봉투 (chain of thought)
+
+각 호출은 짧은 추론 + 요청 하나로 구성됩니다:
+
+| 필드 | 의미 |
+|---|---|
+| `question` | 사용자 말 그대로의 코드 질문 — 그래프가 이 단어들 기준으로 랭킹함 |
+| `draft` | `{ reason, type }`: 답할 수 있는 가장 작은 요청과 그 이유 |
+| `review` | draft 교정; 그래프가 이미 답했거나 증거가 그래프 밖이면 escape |
+| `request` | 최종 요청 — 아래 7개 타입 중 정확히 하나 |
+
+결과에는 `audit`(무엇을 검증했는지)와 `next` 힌트(`answer`/`inspect`/`outside`/
+`clarify`)가 실려 후속 호출 페이스를 잡아줍니다.
+
+### 7개 요청 타입 (메서드)
+
+| 타입 | 답하는 것 | 주요 입력 |
+|---|---|---|
+| `tour` | 아키텍처·런타임 흐름·오리엔테이션 — 한 번의 호출로 전체 코드 투어 | `reinterpretations[]`(기대하는 심볼 이름들, 없으면 `[]`), `limit` |
+| `entrypoints` | 진입점을 모를 때, 실행이 어디서 시작되는지 | `query`, `limit` |
+| `lookup` | 이름 있는 심볼 위치(선언 위치) 찾기 | `query`, `limit` |
+| `trace` | 호출/데이터 흐름 따라가기, 또는 A→B 경로 | `from`, `to?`, `direction`, `focus` |
+| `details` | 시그니처·멤버, 그리고 **인터페이스를 무엇이 구현하는지** | `handles[]`, `neighbors?`, `memberLimit?` |
+| `overview` | 프로젝트 레이어·폴더·핫스팟·공개 API | `aspect` |
+| `escape` | 답이 그래프 **밖**에 있음(소스 본문 텍스트, 비-TS 파일, 정확 문자열 검색) | `reason` |
+
+#### 파라미터 참고
+
+- `trace.direction`: `forward` = 시작점이 쓰는 것(callee) · `reverse` = 시작점을 쓰는 것(caller) · `impact` = 변경이 닿는 공개 API·테스트 우선 역추적.
+- `trace.focus`: `execution`(런타임 호출/인스턴스화/JSX) · `types`(타입 참조/상속) · `all`.
+- `trace.to`: 양 끝을 다 알 때 둘 사이 경로 반환 — *"A가 B까지 어떻게 도달하나"*의 한 방 답.
+- `details`는 인터페이스의 구현체들을 반환 — *"실제로 이걸 구현하는 게 뭐냐"*의 한 방 답.
+- 랭킹 연산(`lookup`·`entrypoints`·`tour`)은 점수화·상한된 shortlist를 반환: 사실은 검증됐지만, 그 shortlist가 질문을 충분히 커버하는지는 사용자가 판단.
+
+### 질문 예시 → 선택되는 메서드
+
+| 이렇게 물으면 | 메서드 |
+|---|---|
+| "이 서버 아키텍처랑 주요 흐름 투어해줘" | `tour` |
+| "결제 처리는 어디서 시작돼?" | `entrypoints` |
+| "`OrderService.create` 어디 선언돼 있어?" | `lookup` |
+| "이 함수 누가 호출해?" | `trace` (reverse) |
+| "컨트롤러가 레포지토리까지 어떻게 도달해?" | `trace` (`to` 사용) |
+| "이 인터페이스 구현한 클래스들 뭐야?" | `details` |
+| "폴더 레이어랑 공개 API 보여줘" | `overview` |
+
 ## 범위: graph만 (lint 제외)
 
 `@ttsc/lint`는 MCP 서버가 아니라 **컴파일 플러그인**이고, 룰을 켜려면 대상 레포 **안에**
 `lint.config.ts`가 있어야 합니다 — 그래서 흔적 0으로는 호스팅할 수 없습니다. 이 호스트는
 **graph만** 다룹니다.
 
-## 검증
+## CLI & 검증
+
+네이티브 빌더는 이 호스트에서 직접 실행할 수도 있습니다 — env 불필요, 대상 레포엔 여전히
+흔적 0 (`<platform>`은 예: `darwin-arm64`, `linux-x64`):
 
 ```bash
-# 어떤 프로젝트든 건드리지 않고 그래프 덤프:
-node_modules/.bin/ttscgraph dump \
-  --cwd <대상-프로젝트-경로> \
-  --tsconfig tsconfig.json > /dev/null && echo OK
+# 스모크 테스트 — 그래프 빌드 후 버림:
+node_modules/@ttsc/<platform>/bin/ttscgraph dump \
+  --cwd <대상-프로젝트-경로> --tsconfig tsconfig.json > /dev/null && echo OK
+
+# 전체 그래프 JSON (모든 노드/엣지, MCP 응답 상한 없음):
+node_modules/@ttsc/<platform>/bin/ttscgraph dump \
+  --cwd <대상-프로젝트-경로> --tsconfig tsconfig.json --pretty > graph.json
 ```
+
+`ttscgraph serve`는 MCP 서버가 구동하는 내부 증분 프로토콜 — 직접 실행하지 않음.
+
+## 라이선스
+
+[Unlicense](LICENSE) — 퍼블릭 도메인. 마음대로 쓰세요; 귀속 표기 불필요, 보증 없음.
+이 레포가 설치하는 npm 패키지들은 각자 라이선스를 유지하며, 여기에 벤더링되지 않습니다.

@@ -2,6 +2,7 @@
   "name": "ts-graph-tools",
   "version": "0.1.0",
   "private": true,
+  "license": "Unlicense",
   "description": "External host for @ttsc/graph — a TypeScript code-graph MCP server. Analyzes any TS project via per-project MCP cwd with zero footprint on the target repo.",
   "engines": {
     "node": ">=22.15.0"
