@@ -6,13 +6,15 @@ External host for [`@ttsc/graph`](https://www.npmjs.com/package/@ttsc/graph) —
 TypeScript **code-graph MCP server** (from the [ttsc](https://github.com/samchon)
 toolchain by samchon, author of typia/nestia).
 
-It indexes a TypeScript codebase into a graph and exposes it to a coding agent
-through one MCP tool, `inspect_typescript_graph`. The graph returns **names,
-edges, signatures, and source spans — not file bodies** — so questions like *"who
-calls this?"*, *"trace this flow"*, *"where is this used?"* are answered by
-reading **zero files** (benchmarks: ~90% fewer tokens, ~93–96% fewer tool calls).
-`tsc` diagnostics ride along on the same graph. tsconfig aliases, re-exports, and
-symlinks are resolved by the **real type checker**, not a text parser.
+The `@ttsc/graph` server running in this host indexes a TypeScript codebase and
+exposes the result through one MCP tool, `inspect_typescript_graph`. It returns
+**names, edges, signatures, and source spans rather than file bodies**. Questions
+about callers, flows, and usages can therefore obtain graph facts without reading
+source bodies directly. End-to-end token and latency effects still depend on the
+task and model and are measured separately in `agent-bench`. `tsc` diagnostics
+are included in the same graph result. `@ttsc/graph` resolves tsconfig aliases,
+re-exports, and symlink relationships through the TypeScript checker rather than
+plain text search.
 
 ## Why a separate host repo
 
@@ -28,8 +30,9 @@ The whole point is to analyze a target repo **without touching it**:
   using its own TypeScript version. Only the graph uses TS7. **Zero footprint** on
   the target — no committed files, no dependency changes.
 
-This is a **general host**: register it once per project (differing only by which
-project it's attached to), reuse across any TS repo.
+This is intended as a **reusable external host** for TypeScript repositories.
+Each project gets its own local MCP registration while reusing the same host
+binaries.
 
 ## What's installed here
 
@@ -91,9 +94,10 @@ difference is which project the local-scope MCP is attached to.
 
 Once registered, the host exposes a **single MCP tool**, `inspect_typescript_graph`.
 You don't call it by hand — ask Claude a question about the codebase in plain
-language and it selects and submits one request. **Every fact returned (names,
-edges, signatures, spans) is compiler-resolved and verified against the current
-on-disk snapshot**, so it's trusted without re-reading files.
+language and it selects and submits one request. The names, edges, signatures, and spans returned by `@ttsc/graph` are based on
+compiler-resolved information. They are useful directly for relationship queries
+such as callers and callees, while questions that depend on source-body text or
+non-TypeScript files still require file inspection.
 
 ### Request envelope (chain of thought)
 
