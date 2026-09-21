@@ -7,12 +7,14 @@
 (`@ttsc/graph`는 typia/nestia 저자 [samchon](https://github.com/samchon)의
 [ttsc](https://github.com/samchon) 툴체인의 일부입니다.)
 
-TypeScript 코드베이스를 그래프로 색인해서, `inspect_typescript_graph` 라는 MCP 툴
-하나로 코딩 에이전트에 제공합니다. 그래프는 **이름·엣지·시그니처·소스 위치(span)만
-반환하고 코드 본문은 안 줍니다.** 그래서 *"이거 누가 호출해?"*, *"이 흐름 따라가봐"*,
-*"여기 어디서 쓰여?"* 같은 탐색을 **파일을 0개 읽고** 답합니다 (벤치마크상 토큰 ~90%,
-툴콜 ~93–96% 절감). `tsc` 진단도 같은 그래프에 실려 나옵니다. tsconfig alias·재-export·
-심링크를 텍스트 파서가 아니라 **실제 타입체커** 기준으로 정확히 해석합니다.
+이 호스트에서 실행하는 `@ttsc/graph`가 TypeScript 코드베이스를 그래프로 색인하고,
+`inspect_typescript_graph` MCP 툴로 결과를 제공합니다. 그래프는 **이름·엣지·시그니처·
+소스 위치(span)를 중심으로 반환하며 코드 본문은 제공하지 않습니다.** 따라서 caller, flow,
+usage처럼 코드 관계를 묻는 질문은 파일 본문을 직접 읽지 않고도 답에 필요한 graph fact를
+얻을 수 있습니다. 다만 실제 Coding Agent 전체 실행의 토큰·시간 효과는 작업과 모델에 따라
+달라지며, 별도 benchmark에서 측정합니다. `tsc` 진단도 같은 graph 결과에 포함됩니다.
+`@ttsc/graph`는 텍스트 검색이 아니라 TypeScript checker 기반으로 tsconfig alias, re-export,
+symlink 등의 관계를 해석합니다.
 
 ## 왜 별도 호스트 레포인가
 
@@ -28,8 +30,8 @@ TypeScript 코드베이스를 그래프로 색인해서, `inspect_typescript_gra
   TypeScript 버전을 씁니다. 그래프만 TS7을 사용합니다. **대상 레포 흔적 0** — 커밋되는
   파일도, 의존성 변경도 없음.
 
-이건 **범용 호스트**입니다: 프로젝트마다 한 번씩 등록(붙는 대상만 다름)해서 어떤 TS
-레포에든 재사용합니다.
+여러 TypeScript repository에서 재사용할 수 있는 **외부 호스트 구성**을 목표로 합니다.
+프로젝트마다 로컬 MCP 등록만 다르게 두고 같은 host binary를 재사용합니다.
 
 ## 여기에 설치되는 것
 
@@ -90,9 +92,9 @@ claude mcp add <mcp-이름> --scope local \
 
 등록되면 호스트는 **MCP 툴 하나** `inspect_typescript_graph`를 노출합니다. 직접
 호출하는 게 아니라 — 코드베이스에 대한 질문을 평소 말로 Claude에게 하면, Claude가 아래
-요청 타입 중 하나를 골라 제출합니다. **반환된 모든 사실(이름·엣지·시그니처·span)은
-컴파일러가 해석하고 현재 디스크 스냅샷 기준으로 검증**되므로, 파일을 다시 안 읽고 그대로
-신뢰합니다.
+요청 타입 중 하나를 골라 제출합니다. `@ttsc/graph`가 반환하는 이름·엣지·시그니처·span은 compiler-resolved 정보를 기반으로
+합니다. caller/callee 같은 관계 확인에는 바로 사용할 수 있지만, 소스 본문 내용이나 비-TS
+파일 정보가 필요한 질문은 별도 파일 확인이 필요합니다.
 
 ### 요청 봉투 (chain of thought)
 
