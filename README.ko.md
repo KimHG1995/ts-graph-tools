@@ -142,6 +142,53 @@ claude mcp add <mcp-이름> --scope local \
 | "이 인터페이스 구현한 클래스들 뭐야?" | `details` |
 | "폴더 레이어랑 공개 API 보여줘" | `overview` |
 
+## 코딩 에이전트 스킬
+
+공통 사용 규칙의 원본은 [skills/ts-graph/SKILL.md](skills/ts-graph/SKILL.md)입니다.
+MCP 서버는 그래프 정보를 제공하고, 스킬은 대상 프로젝트 선택, 요청 종류 선택,
+소스 본문 확인 시점, 불완전한 결과 해석, 도구가 없을 때의 대안을 안내합니다.
+특정 클라이언트의 MCP 서버 이름을 고정하지 않고 연결된 도구의 스키마를 따릅니다.
+
+호스트 체크아웃에서 같은 원본을 각 로컬 클라이언트에 설치합니다:
+
+```bash
+bash scripts/install-agent-skill.sh codex
+bash scripts/install-agent-skill.sh claude
+```
+
+| 클라이언트 | 스킬 탐색 위치 | MCP 연결 |
+|---|---|---|
+| Codex | 사용자 심링크 `~/.agents/skills/ts-graph` | 대상 프로젝트에 맞게 MCP를 별도 설정 |
+| Claude Code | 사용자 심링크 `~/.claude/skills/ts-graph` | 위의 `scripts/register-mcp.sh` 사용 |
+| ChatGPT | 같은 스킬 원본을 플러그인으로 패키징 | HTTPS 또는 Secure MCP Tunnel로 서버 별도 연결 |
+
+설치 스크립트는 공통 스킬 디렉터리를 가리키는 절대 경로 심링크를 만듭니다.
+Bash와 표준 Unix 명령이 필요하며, 대상 프로젝트에 파일을 만들거나 의존성을 설치하거나
+MCP를 등록하지 않습니다. 동일한 링크에 재실행하면 변경 없이 성공합니다. 기존 파일,
+디렉터리, 다른 심링크는 덮어쓰지 않고 오류로 처리합니다. 두 번째 인자로 다른 스킬
+디렉터리를 지정할 수 있습니다. 예: `bash scripts/install-agent-skill.sh codex /tmp/skill-check`.
+
+호스트 체크아웃 경로를 유지하면 원본 수정이 링크를 통해 두 클라이언트에 반영됩니다.
+체크아웃을 이동했다면 기존 스킬 심링크만 제거한 뒤 재설치하세요. 삭제할 때도 설치기가
+출력한 심링크만 제거합니다. `ts-graph`가 보이지 않으면 클라이언트의 스킬 목록을 다시
+불러오거나 재시작하세요. 스킬만 설치해도 MCP 도구가 연결되는 것은 아닙니다.
+
+ChatGPT 패키징과 연결은 수동 작업이며, 이 저장소는 ChatGPT 설치기나 HTTP 어댑터를
+제공하지 않습니다. Secure MCP Tunnel을 사용할 수 있다면 stdio 서버도 연결할 수 있어
+새 HTTP 어댑터가 항상 필요한 것은 아닙니다. 로컬 Claude/Codex 심링크는 ChatGPT 계정에
+스킬을 설치하지 않습니다.
+
+최신 클라이언트 설정은 [Codex 스킬 탐색](https://learn.chatgpt.com/docs/build-skills),
+[Claude Code 스킬](https://code.claude.com/docs/en/skills),
+[ChatGPT 플러그인 연결](https://developers.openai.com/plugins/deploy/connect-chatgpt) 문서를 참고하세요.
+
+사용자 설정을 변경하지 않고 설치기를 검증할 수 있습니다(Python 3 표준 라이브러리 사용):
+
+```bash
+bash -n scripts/install-agent-skill.sh
+python3 -m unittest discover -s tests -p 'test_*.py'
+```
+
 ## 범위: graph만 (lint 제외)
 
 `@ttsc/lint`는 MCP 서버가 아니라 **컴파일 플러그인**이고, 룰을 켜려면 대상 레포 **안에**
