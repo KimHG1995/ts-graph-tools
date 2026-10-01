@@ -145,6 +145,56 @@ The result carries an `audit` (what was verified) and a `next` hint —
 | "Which classes implement this interface?" | `details` |
 | "Show the folder layers and the public API" | `overview` |
 
+## Coding agent skill
+
+The canonical usage workflow is [skills/ts-graph/SKILL.md](skills/ts-graph/SKILL.md).
+The MCP server supplies graph facts; the skill explains project selection,
+request routing, source-reading boundaries, incomplete results, and fallback when
+no graph tool is available. It works with the connected tool's schema rather than
+hard-coding a client-specific MCP server name.
+
+Install the same source for either local client from this host checkout:
+
+```bash
+bash scripts/install-agent-skill.sh codex
+bash scripts/install-agent-skill.sh claude
+```
+
+| Client | Skill discovery | MCP connection |
+|---|---|---|
+| Codex | User symlink at `~/.agents/skills/ts-graph` | Configure the MCP separately for the target project |
+| Claude Code | User symlink at `~/.claude/skills/ts-graph` | Use `scripts/register-mcp.sh` as described above |
+| ChatGPT | Package the same skill in a plugin | Connect the server separately through HTTPS or Secure MCP Tunnel |
+
+The installer creates an absolute directory symlink to the canonical skill. It
+requires Bash and standard Unix utilities, creates no files in target projects,
+and does not install dependencies or register an MCP. Running it again for the
+same link is a no-op. Existing files, directories, and other symlinks are rejected
+without replacement. An optional second argument selects a different skills
+directory, for example `bash scripts/install-agent-skill.sh codex /tmp/skill-check`.
+
+Keep the host checkout at the same path: updating its skill updates both local
+clients through their links. If you move the checkout, remove only the old skill
+symlink and reinstall. To uninstall, remove only the symlink printed by the
+installer. Reload the client's skill list or restart the client if it does not
+show `ts-graph`. A skill by itself does not make an MCP tool available.
+
+ChatGPT packaging and connection remain manual; this repository does not provide
+a ChatGPT installer or HTTP adapter. Secure MCP Tunnel can connect to a stdio
+server where available, so a new HTTP adapter is not always required. A local
+Claude/Codex symlink does not install the skill into a ChatGPT account.
+
+See the current client documentation for [Codex skill discovery](https://learn.chatgpt.com/docs/build-skills),
+[Claude Code skills](https://code.claude.com/docs/en/skills), and
+[ChatGPT plugin connections](https://developers.openai.com/plugins/deploy/connect-chatgpt).
+
+To verify the installer without changing user settings (Python 3 standard library):
+
+```bash
+bash -n scripts/install-agent-skill.sh
+python3 -m unittest discover -s tests -p 'test_*.py'
+```
+
 ## Scope: graph only (not lint)
 
 `@ttsc/lint` is a **compile plugin**, not an MCP server, and it requires a
